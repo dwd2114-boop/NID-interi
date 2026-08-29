@@ -1,3 +1,10 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
 <title>NID 인테리어</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -316,6 +323,11 @@ footer{border-top:1px solid var(--line); background:var(--surface); padding:clam
   header.over nav{background:var(--ground); color:var(--ink)}
   .burger{display:block}
   .hero-cap{max-width:60vw; font-size:11px}
+}
+@media (max-width:640px){
+  .hero-cap,.scrollcue{display:none}
+  .hero-foot{gap:10px}
+  .bar{width:56px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important; transition-duration:.01ms !important}
@@ -802,3 +814,6 @@ if(FORM_URL){
 
 boot(); show(0); play(); render();
 </script>
+
+</body>
+</html>
