@@ -320,14 +320,6 @@ p.lead{color:var(--ink); font-size:16px}
 .svc h4{margin:0 0 8px; font-family:"Gowun Batang",serif; font-size:16px; font-weight:400}
 .svc p{margin:0; font-size:13px}
 
-.moodhead{margin-top:clamp(56px,7vw,84px)}
-.moodhead p.note{max-width:60ch; font-size:13.5px; color:var(--ink-2); margin-top:8px}
-.moodgrid{
-  display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:clamp(22px,3vw,32px);
-}
-@media (min-width:640px){ .moodgrid{grid-template-columns:repeat(5,1fr)} }
-.moodgrid figure{margin:0; border-radius:3px; overflow:hidden; background:var(--surface-2)}
-.moodgrid img{aspect-ratio:3/4; object-fit:cover; width:100%; display:block}
 
 /* ---------- sns ---------- */
 .snsgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:clamp(18px,2.6vw,28px)}
@@ -628,7 +620,7 @@ footer{border-top:1px solid var(--line); background:var(--surface); padding:clam
         </div>
         <div class="maplinks">
           <a href="https://map.naver.com/p/search/경기도 이천시 향교로82번길 15" target="_blank" rel="noopener">네이버지도 보기</a>
-          <a href="https://map.kakao.com/?q=경기도 이천시 향교로82번길 15" target="_blank" rel="noopener">카카오맵 보기</a>
+          <a href="https://place.map.kakao.com/1530641867" target="_blank" rel="noopener">카카오맵 보기</a>
         </div>
       </div>
     </div>
@@ -642,12 +634,6 @@ footer{border-top:1px solid var(--line); background:var(--surface); padding:clam
       <div><h4>하이엔드 제작가구</h4><p>공간 치수에 맞춘 붙박이·아일랜드 등 맞춤 제작가구</p></div>
     </div>
 
-    <div class="moodhead">
-      <p class="lbl">STYLE WE AIM FOR</p>
-      <h2 class="sec">저희가 지향하는 스타일</h2>
-      <p class="note">아래 이미지는 NID 인테리어의 실제 시공 사진이 아니라, 저희가 방향성으로 참고하는 무드 레퍼런스입니다. 톤과 마감의 결을 이렇게 맞춰가고자 합니다.</p>
-    </div>
-    <div class="moodgrid" id="moodgrid"></div>
   </div>
 </section>
 
@@ -761,12 +747,6 @@ function boot(){
   document.getElementById('ctotal').textContent=String(IMG.hero.length).padStart(2,'0');
   document.getElementById('storyimg').src = IMG.story[0];
   document.getElementById('mapimg').src = IMG.map[0];
-  const mg=document.getElementById('moodgrid');
-  (IMG.mood||[]).forEach(d=>{
-    const fig=document.createElement('figure');
-    fig.innerHTML='<img src="'+d+'" alt="지향하는 스타일 레퍼런스" loading="lazy">';
-    mg.appendChild(fig);
-  });
   const g=document.getElementById('folio-grid');
   PROJECTS.forEach(p=>{
     const b=document.createElement('button'); b.className='card'; b.dataset.pid=p.id;
