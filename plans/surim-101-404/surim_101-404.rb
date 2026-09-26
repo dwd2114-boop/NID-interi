@@ -141,13 +141,19 @@ __JSON__
       # 그림자 / 장면
       si = model.shadow_info
       si['DisplayShadows'] = true
-      si['Light'] = 80
-      si['Dark'] = 45
+      si['Light'] = 85
+      si['Dark'] = 55
       begin
-        si['ShadowTime'] = Time.utc(2026, 10, 15, 5, 0, 0)
+        # SketchUp 은 그림자 시간을 '현지 시각'을 UTC 형식으로 받는다 -> 오후 2시
+        si['ShadowTime'] = Time.utc(2026, 10, 15, 14, 0, 0)
       rescue StandardError
         nil
       end
+      # 단위: mm (치수가 인치로 나오지 않게)
+      uo = model.options['UnitsOptions']
+      uo['LengthFormat'] = 0
+      uo['LengthUnit'] = 2
+      uo['LengthPrecision'] = 0
 
       hidden = ['인방(상부벽)', '천장·조명(숨김)']
       view = model.active_view
