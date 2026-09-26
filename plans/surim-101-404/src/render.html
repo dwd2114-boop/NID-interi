@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>수림 101-404 렌더</title>
+<style>html,body{margin:0;background:#fff;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">
+{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const q = new URLSearchParams(location.search);
+const MODE = q.get('mode') || 'top';
+const W = +(q.get('w') || 2400), H = +(q.get('h') || 1800);
+const BASE = q.get('base') || '/plan/';
+
+const data = await (await fetch(BASE + 'layout.json')).json();
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.82;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#ffffff');
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.35;
+
+// plan (x mm, y mm, z mm)  ->  three (x m, z m up -> y, y m -> z)
+const P = (x, y, z) => new THREE.Vector3(x / 1000, z / 1000, y / 1000);
+
+const loader = new THREE.TextureLoader();
+const texCache = {};
+async function tex(name) {
+  if (!texCache[name]) {
+    const t = await loader.loadAsync(BASE + 'textures/' + name);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = 8;
+    texCache[name] = t;
+  }
+  return texCache[name];
+}
+
+const ROUGH = { glass: 0.05, glass_mid: 0.08, mirror: 0.04, steel: 0.3, chrome: 0.12, cooktop: 0.15,
+  porcelain: 0.18, marble: 0.35, tile_bw: 0.25, tile_ent: 0.45, tile_bf: 0.5, oak: 0.55, alu_black: 0.4,
+  handle: 0.3, kcc: 0.5, door: 0.5 };
+const METAL = { steel: 0.8, chrome: 1.0, mirror: 0.55, handle: 0.8 };
+
+async function material(key, dims) {
+  const m = data.materials[key];
+  const opt = { color: new THREE.Color(m.color), roughness: ROUGH[key] ?? 0.8, metalness: METAL[key] ?? 0 };
+  if (m.alpha < 1) Object.assign(opt, { transparent: true, opacity: m.alpha, depthWrite: false });
+  if (key === 'led' || key === 'fan_light') Object.assign(opt, { emissive: new THREE.Color('#ffe9b8'), emissiveIntensity: key === 'led' ? 3 : 0.6 });
+  if (m.tex && dims) {
+    const t = (await tex(m.tex)).clone();
+    t.needsUpdate = true;
+    t.repeat.set(dims[0] / m.texmm, dims[1] / m.texmm);
+    if (dims[2] !== undefined) t.offset.set(dims[2] / m.texmm, dims[3] / m.texmm);
+    opt.map = t;
+    opt.color = new THREE.Color('#ffffff');
+  }
+  return new THREE.MeshStandardMaterial(opt);
+}
+
+const capMat = new THREE.MeshStandardMaterial({ color: data.materials.wall_cap.color, roughness: 0.9 });
+const root = new THREE.Group();
+scene.add(root);
+
+for (const p of data.prims) {
+  if (p.render === false) continue;
+  let mesh;
+  const glassy = data.materials[p.m].alpha < 1;
+  if (p.k === 'box') {
+    const w = p.x1 - p.x0, d = p.y1 - p.y0, h = p.z1 - p.z0;
+    if (p.floor) {
+      // top plane with world-aligned UV + thin slab body
+      const mat = await material(p.m, [w, d, p.x0, -p.y1]);
+      const geo = new THREE.PlaneGeometry(w / 1000, d / 1000);
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.copy(P((p.x0 + p.x1) / 2, (p.y0 + p.y1) / 2, p.z1));
+      mesh.receiveShadow = true;
+      root.add(mesh);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w / 1000, (h - 1) / 1000, d / 1000),
+        new THREE.MeshStandardMaterial({ color: '#8d8a85', roughness: 0.9 }));
+      body.position.copy(P((p.x0 + p.x1) / 2, (p.y0 + p.y1) / 2, (p.z0 + p.z1 - 1) / 2));
+      body.receiveShadow = true;
+      root.add(body);
+      continue;
+    }
+    const geo = new THREE.BoxGeometry(w / 1000, h / 1000, d / 1000);
+    const side = await material(p.m, [Math.max(w, d), h]);
+    const mats = p.cap ? [side, side, capMat, side, side, side] : side;
+    mesh = new THREE.Mesh(geo, mats);
+    mesh.position.copy(P((p.x0 + p.x1) / 2, (p.y0 + p.y1) / 2, (p.z0 + p.z1) / 2));
+    if (p.rot) mesh.rotation.y = -p.rot * Math.PI / 180;
+  } else {
+    const geo = new THREE.CylinderGeometry(1, 1, (p.z1 - p.z0) / 1000, 40);
+    mesh = new THREE.Mesh(geo, await material(p.m));
+    mesh.scale.set(p.rx / 1000, 1, p.ry / 1000);
+    mesh.position.copy(P(p.cx, p.cy, (p.z0 + p.z1) / 2));
+  }
+  mesh.castShadow = !glassy && p.m !== 'led';
+  mesh.receiveShadow = !glassy;
+  root.add(mesh);
+  if (p.light) {
+    // 간접조명: 바닥/벽에 번지는 빛
+    const cx = (p.x0 + p.x1) / 2, cy = (p.y0 + p.y1) / 2;
+    const len = Math.max(p.x1 - p.x0, p.y1 - p.y0);
+    const n = Math.max(1, Math.round(len / 500));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const lx = (p.x1 - p.x0) > (p.y1 - p.y0) ? p.x0 + t * (p.x1 - p.x0) : cx;
+      const ly = (p.x1 - p.x0) > (p.y1 - p.y0) ? cy : p.y0 + t * (p.y1 - p.y0);
+      const L = new THREE.PointLight('#ffd9a0', 0.35, 1.1, 2);
+      L.position.copy(P(lx + 60, ly, p.z0 - 20));
+      scene.add(L);
+    }
+  }
+}
+
+// ---- lighting
+scene.add(new THREE.HemisphereLight('#ffffff', '#d9d2c6', 0.55));
+const sun = new THREE.DirectionalLight('#fff1dc', 3.2);
+sun.position.copy(P(12500, 9800, 9000));      // 앞베란다(우측) 쪽 햇빛
+sun.target.position.copy(P(5600, 4200, 0));
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+const sc = sun.shadow.camera;
+sc.left = -10; sc.right = 10; sc.top = 10; sc.bottom = -10; sc.near = 1; sc.far = 40;
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.01;
+sun.shadow.radius = 3;
+scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight('#e8efff', 0.35);
+fill.position.copy(P(-3000, -2000, 8000));
+scene.add(fill);
+
+// ---- camera
+let camera;
+const cx = 5675, cy = 4200;
+if (MODE === 'top') {
+  const spanX = 12.3, spanY = spanX * H / W;
+  camera = new THREE.OrthographicCamera(-spanX / 2, spanX / 2, spanY / 2, -spanY / 2, 0.1, 50);
+  camera.position.copy(P(cx, cy, 20000));
+  camera.up.set(0, 0, -1);
+  camera.lookAt(P(cx, cy, 0));
+} else {
+  camera = new THREE.PerspectiveCamera(+(q.get('fov') || 30), W / H, 0.1, 100);
+  const e = (q.get('eye') || '13200,15200,13500').split(',').map(Number);
+  const t = (q.get('tgt') || '5500,4300,-600').split(',').map(Number);
+  camera.position.copy(P(...e));
+  camera.lookAt(P(...t));
+}
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const ao = new GTAOPass(scene, camera, W, H);
+ao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1.5, thickness: 1.2, scale: 1.1, samples: 16 });
+ao.blendIntensity = 0.85;
+composer.addPass(ao);
+composer.addPass(new OutputPass());
+composer.render();
+composer.render();
+window.__done = true;
+</script>
+</body>
+</html>
